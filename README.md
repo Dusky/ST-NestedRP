@@ -14,9 +14,10 @@ This extension allows users to create a meta-roleplay experience where one AI ch
 ## Installation
 
 1. Download or clone this repository
-2. Place the `nested-roleplay` folder in your SillyTavern's `public/extensions` directory
-3. Restart SillyTavern or refresh the page
-4. Enable the extension in the Extensions tab
+2. Create a folder named `nested-roleplay` in your SillyTavern's `public/extensions` directory
+3. Copy all files from this repository into that folder
+4. Restart SillyTavern or refresh the page
+5. Enable the extension in the Extensions tab
 
 ## Usage
 
@@ -49,9 +50,9 @@ For example, your message might look like:
 
 ## License
 
-This extension is licensed under [Your License of Choice]
+This extension is licensed under MIT License
 
 ## Credits
 
-- Your Name - Developer
+- Dusky - Developer
 - SillyTavern Team - For creating the amazing platform that makes this extension possible
