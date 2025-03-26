@@ -1,5 +1,5 @@
 {
-    "name": "rppal",
+    "name": "ST-NestedRP",
     "display_name": "Nested Roleplay",
     "loading_order": 10,
     "requires": [],
@@ -8,6 +8,6 @@
     "css": "style.css",
     "author": "Matt",
     "version": "1.0.0",
-    "homePage": "https://github.com/matt/rppal",
+    "homePage": "https://github.com/matt/ST-NestedRP",
     "auto_update": false
 }

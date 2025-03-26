@@ -5,7 +5,7 @@
 import { getContext, extension_settings, saveSettingsDebounced } from "../../../extensions.js";
 
 // Module name for settings
-const MODULE_NAME = 'rppal';
+const MODULE_NAME = 'ST-NestedRP';
 
 // Default settings
 const defaultSettings = {
