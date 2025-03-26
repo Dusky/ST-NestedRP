@@ -5,181 +5,56 @@
  * acts as a roleplay partner who controls another character.
  */
 
-import { extension_settings, getContext, saveSettingsDebounced } from "../../../../script.js";
-
-// Module name for settings
-const MODULE_NAME = 'nested_roleplay';
-
-// Default settings
-const defaultSettings = {
-    enabled: false,
-    partnerCharacterId: '',
-    controlledCharacterId: '',
-    showPartnerName: true,
-    allowMetaCommentary: true,
-    metaCommentaryStyle: 'parentheses', // 'parentheses' or 'asterisks'
-    controlledCharDialog: 'quotes', // 'quotes' or 'none'
-};
-
-// Initialize extension settings
-function initSettings() {
-    // Create settings if they don't exist
-    if (!extension_settings[MODULE_NAME]) {
-        extension_settings[MODULE_NAME] = {};
-    }
-    
-    // Set default values for settings that don't exist
-    for (const key in defaultSettings) {
-        if (extension_settings[MODULE_NAME][key] === undefined) {
-            extension_settings[MODULE_NAME][key] = defaultSettings[key];
-        }
-    }
-}
+import { getContext } from "../../../../script.js";
+import { MODULE_NAME, initSettings, registerUIHandlers } from "./settings.js";
 
 // Initialize extension
 jQuery(async () => {
-    // Get SillyTavern API context
-    const context = getContext();
-    const { eventSource, event_types } = context;
-    
-    // Initialize settings
-    initSettings();
-    
-    // Create and add the settings UI
-    $('#extensions_settings2').append(renderExtensionTemplate());
-    
-    // Register event handlers for UI controls
-    registerUIHandlers();
-    
-    // Initialize character lists
-    refreshCharacterLists();
-    
-    // Register event listeners
-    eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
-    eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
-    eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
-    eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
-    eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePrompts);
-    
-    console.log('Nested Roleplay extension loaded');
+    try {
+        console.log('Nested Roleplay: Starting initialization');
+        
+        // Get SillyTavern API context
+        const context = getContext();
+        const { eventSource, event_types, extensionSettings } = context;
+        
+        // Initialize settings
+        const settings = initSettings();
+        
+        // Create and add the settings UI
+        const response = await fetch('./extensions/nested-roleplay/template.html');
+        if (response.ok) {
+            const htmlTemplate = await response.text();
+            $('#extensions_settings2').append(htmlTemplate);
+            
+            // Register event handlers for UI controls
+            registerUIHandlers();
+            
+            // Initialize character lists
+            refreshCharacterLists();
+            
+            // Register event listeners
+            eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
+            eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
+            eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
+            eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
+            eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePrompts);
+            
+            console.log('Nested Roleplay extension loaded successfully');
+        } else {
+            console.error('Nested Roleplay: Failed to load HTML template');
+        }
+    } catch (error) {
+        console.error('Nested Roleplay: Error during initialization', error);
+    }
 });
 
-/**
- * Render the extension settings UI template
- * @returns {string} HTML template
- */
-function renderExtensionTemplate() {
-    return `
-    <div class="nested_roleplay_settings">
-        <div class="inline-drawer">
-            <div class="inline-drawer-toggle inline-drawer-header">
-                <b>Nested Roleplay</b>
-                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down"></div>
-            </div>
-            <div class="inline-drawer-content">
-                <div class="nested-roleplay-container">
-                    <label class="checkbox_label">
-                        <input type="checkbox" id="nested_roleplay_enabled" />
-                        <span>Enable Nested Roleplay</span>
-                    </label>
-                    
-                    <div class="nested-roleplay-row">
-                        <div class="nested-roleplay-label">Roleplay Partner:</div>
-                        <select id="nested_roleplay_partner" class="text_pole"></select>
-                    </div>
-                    
-                    <div class="nested-roleplay-row">
-                        <div class="nested-roleplay-label">Controlled Character:</div>
-                        <select id="nested_roleplay_controlled" class="text_pole"></select>
-                    </div>
-                    
-                    <label class="checkbox_label">
-                        <input type="checkbox" id="nested_roleplay_show_partner_name" />
-                        <span>Show partner name in messages</span>
-                    </label>
-                    
-                    <label class="checkbox_label">
-                        <input type="checkbox" id="nested_roleplay_allow_commentary" />
-                        <span>Allow meta-commentary from partner</span>
-                    </label>
-                    
-                    <div class="nested-roleplay-row">
-                        <div class="nested-roleplay-label">Commentary style:</div>
-                        <select id="nested_roleplay_commentary_style" class="text_pole">
-                            <option value="parentheses">Parentheses: (like this)</option>
-                            <option value="asterisks">Asterisks: *like this*</option>
-                        </select>
-                    </div>
-                    
-                    <div class="nested-roleplay-row">
-                        <div class="nested-roleplay-label">Character dialog:</div>
-                        <select id="nested_roleplay_dialog_style" class="text_pole">
-                            <option value="quotes">Quotes: "like this"</option>
-                            <option value="none">No quotes</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>`;
-}
-
-/**
- * Register event handlers for UI controls
- */
-function registerUIHandlers() {
-    const settings = extension_settings[MODULE_NAME];
-    
-    // Set initial values
-    $('#nested_roleplay_enabled').prop('checked', settings.enabled);
-    $('#nested_roleplay_show_partner_name').prop('checked', settings.showPartnerName);
-    $('#nested_roleplay_allow_commentary').prop('checked', settings.allowMetaCommentary);
-    $('#nested_roleplay_commentary_style').val(settings.metaCommentaryStyle);
-    $('#nested_roleplay_dialog_style').val(settings.controlledCharDialog);
-    
-    // Bind change events
-    $('#nested_roleplay_enabled').on('change', function() {
-        settings.enabled = !!$(this).prop('checked');
-        saveSettingsDebounced();
-    });
-    
-    $('#nested_roleplay_partner').on('change', function() {
-        settings.partnerCharacterId = $(this).val();
-        saveSettingsDebounced();
-    });
-    
-    $('#nested_roleplay_controlled').on('change', function() {
-        settings.controlledCharacterId = $(this).val();
-        saveSettingsDebounced();
-    });
-    
-    $('#nested_roleplay_show_partner_name').on('change', function() {
-        settings.showPartnerName = !!$(this).prop('checked');
-        saveSettingsDebounced();
-    });
-    
-    $('#nested_roleplay_allow_commentary').on('change', function() {
-        settings.allowMetaCommentary = !!$(this).prop('checked');
-        saveSettingsDebounced();
-    });
-    
-    $('#nested_roleplay_commentary_style').on('change', function() {
-        settings.metaCommentaryStyle = $(this).val();
-        saveSettingsDebounced();
-    });
-    
-    $('#nested_roleplay_dialog_style').on('change', function() {
-        settings.controlledCharDialog = $(this).val();
-        saveSettingsDebounced();
-    });
-}
 
 /**
  * Refresh character dropdown lists in settings
  */
 function refreshCharacterLists() {
     const context = getContext();
-    const { characters } = context;
+    const { characters, extension_settings } = context;
     const settings = extension_settings[MODULE_NAME];
     
     // Clear existing options
@@ -221,8 +96,11 @@ function refreshCharacterLists() {
  * @param {object} data - Message data
  */
 function onMessageReceived(data) {
-    // Ignore if extension is disabled
+    const context = getContext();
+    const { extension_settings } = context;
     const settings = extension_settings[MODULE_NAME];
+    
+    // Ignore if extension is disabled
     if (!settings.enabled) return;
     
     // Ignore if not an AI message
@@ -231,8 +109,7 @@ function onMessageReceived(data) {
     // Ignore if no characters are selected
     if (!settings.partnerCharacterId || !settings.controlledCharacterId) return;
     
-    // Get the context
-    const context = getContext();
+    // Get characters from context
     const { characters } = context;
     
     // Find partner and controlled character
@@ -270,13 +147,17 @@ function onMessageReceived(data) {
  * @param {object} data - The data containing prompts
  */
 function onBeforeCombinePrompts(data) {
+    const context = getContext();
+    const { extension_settings } = context;
     const settings = extension_settings[MODULE_NAME];
+    
+    // Ignore if extension is disabled
     if (!settings.enabled) return;
     
     // Ignore if no characters are selected
     if (!settings.partnerCharacterId || !settings.controlledCharacterId) return;
     
-    const context = getContext();
+    // Get characters from context
     const { characters } = context;
     
     // Find partner and controlled character
