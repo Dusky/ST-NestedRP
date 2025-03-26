@@ -5,19 +5,36 @@
  * acts as a roleplay partner who controls another character.
  */
 
-import { getContext, extension_settings } from '../../extensions.js';
+import { getContext, extension_settings } from '../../../extensions.js';
 import { MODULE_NAME, extensionName, initSettings, registerUIHandlers } from './settings.js';
 
 const extensionFolder = `extensions/${extensionName}`;
 
-// Initialize extension
-jQuery(async () => {
+// Register the extension callback for when extensions are loaded by SillyTavern
+(function() {
+    // Add a listener for the extensions_done event
+    document.addEventListener('extensions_done', function() {
+        console.log('Nested Roleplay: SillyTavern extensions_done event received');
+        initializeExtension();
+    });
+})();
+
+// Main initialization function
+async function initializeExtension() {
+    console.log('Nested Roleplay: Starting initialization');
     try {
         console.log('Nested Roleplay: Starting initialization');
+        console.log('Nested Roleplay: Extension folder path:', extensionFolder);
         
         // Load settings HTML template
-        const settingsHtml = await $.get(`${extensionFolder}/template.html`);
-        $('#extensions_settings2').append(settingsHtml);
+        console.log('Nested Roleplay: Attempting to load template.html from:', `${extensionFolder}/template.html`);
+        try {
+            const settingsHtml = await $.get(`${extensionFolder}/template.html`);
+            console.log('Nested Roleplay: Successfully loaded template.html');
+            $('#extensions_settings2').append(settingsHtml);
+        } catch (templateError) {
+            console.error('Nested Roleplay: Failed to load template.html', templateError);
+        }
         
         // Initialize settings
         await initSettings();
@@ -33,6 +50,14 @@ jQuery(async () => {
         
         // Register event listeners
         const context = getContext();
+        console.log('Nested Roleplay: Context retrieved', context ? 'successfully' : 'failed');
+        
+        // Check if the extension is registered in the extensions registry
+        if (context && context.extensionNames) {
+            console.log('Nested Roleplay: Extension names in context:', context.extensionNames);
+            console.log('Nested Roleplay: Is extension registered?', context.extensionNames.includes(extensionName));
+        }
+        
         const { eventSource, event_types } = context;
         
         eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
@@ -45,16 +70,19 @@ jQuery(async () => {
     } catch (error) {
         console.error('Nested Roleplay: Error during initialization', error);
     }
-});
-
+}
 
 /**
  * Refresh character dropdown lists in settings
+ * Declared early to ensure it's defined before it's used
  */
 function refreshCharacterLists() {
+    console.log('Nested Roleplay: refreshCharacterLists called');
     try {
         const context = getContext();
+        console.log('Nested Roleplay: Context in refreshCharacterLists:', context ? 'available' : 'unavailable');
         const { characters, extension_settings } = context;
+        console.log('Nested Roleplay: Characters in context:', characters ? `${characters.length} found` : 'none found');
         const settings = extension_settings[MODULE_NAME];
         
         if (!characters || !Array.isArray(characters) || characters.length === 0) {
