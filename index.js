@@ -5,9 +5,36 @@
  * acts as a roleplay partner who controls another character.
  */
 
-import { getContext, extension_settings } from '../../../extensions.js';
+// Import locally defined modules
 import { MODULE_NAME, extensionName, initSettings, registerUIHandlers } from './settings.js';
 
+// Define a function to try different import paths
+async function importExtensionsModule() {
+    let getContext, extension_settings;
+    
+    try {
+        // Try the standard path first (manual installation)
+        const module = await import('../../../extensions.js');
+        getContext = module.getContext;
+        extension_settings = module.extension_settings;
+        console.log('Nested Roleplay: Imported from standard path');
+        return { getContext, extension_settings };
+    } catch (e) {
+        try {
+            // Try alternate path (extension manager)
+            const module = await import('../../extensions.js');
+            getContext = module.getContext;
+            extension_settings = module.extension_settings;
+            console.log('Nested Roleplay: Imported from alternate path');
+            return { getContext, extension_settings };
+        } catch (e2) {
+            console.error('Nested Roleplay: Failed to import extensions.js', e2);
+            return null;
+        }
+    }
+}
+
+// Use relative path for extension folder
 const extensionFolder = `extensions/${extensionName}`;
 
 // Register the extension callback for when extensions are loaded by SillyTavern
@@ -23,7 +50,23 @@ const extensionFolder = `extensions/${extensionName}`;
 async function initializeExtension() {
     console.log('Nested Roleplay: Starting initialization');
     try {
-        console.log('Nested Roleplay: Starting initialization');
+        // First import the required modules dynamically
+        const modules = await importExtensionsModule();
+        if (!modules) {
+            console.error('Nested Roleplay: Could not import required modules');
+            return;
+        }
+        
+        const { getContext, extension_settings } = modules;
+        
+        // Access to global window for debugging
+        window.nestedRoleplayDebug = {
+            getContext,
+            extension_settings,
+            extensionName,
+            MODULE_NAME
+        };
+        
         console.log('Nested Roleplay: Extension folder path:', extensionFolder);
         
         // Load settings HTML template
@@ -37,16 +80,10 @@ async function initializeExtension() {
         }
         
         // Initialize settings
-        await initSettings();
+        await initSettings(extension_settings);
         
         // Register UI handlers and initialize character lists
-        registerUIHandlers();
-        // Make sure refreshCharacterLists is defined before calling
-        if (typeof refreshCharacterLists === 'function') {
-            refreshCharacterLists();
-        } else {
-            console.error('Nested Roleplay: refreshCharacterLists function not defined in scope');
-        }
+        registerUIHandlers(extension_settings);
         
         // Register event listeners
         const context = getContext();
@@ -56,6 +93,13 @@ async function initializeExtension() {
         if (context && context.extensionNames) {
             console.log('Nested Roleplay: Extension names in context:', context.extensionNames);
             console.log('Nested Roleplay: Is extension registered?', context.extensionNames.includes(extensionName));
+        }
+        
+        // Make sure refreshCharacterLists is defined before calling
+        if (typeof refreshCharacterLists === 'function') {
+            refreshCharacterLists();
+        } else {
+            console.error('Nested Roleplay: refreshCharacterLists function not defined in scope');
         }
         
         const { eventSource, event_types } = context;
@@ -79,9 +123,23 @@ async function initializeExtension() {
 function refreshCharacterLists() {
     console.log('Nested Roleplay: refreshCharacterLists called');
     try {
-        const context = getContext();
+        // Check if our debug object is available
+        if (!window.nestedRoleplayDebug || !window.nestedRoleplayDebug.getContext) {
+            console.error('Nested Roleplay: Debug object not yet available, refreshCharacterLists called too early');
+            return;
+        }
+        
+        // Get the latest context from our debug object
+        const context = window.nestedRoleplayDebug.getContext();
         console.log('Nested Roleplay: Context in refreshCharacterLists:', context ? 'available' : 'unavailable');
-        const { characters, extension_settings } = context;
+        
+        if (!context) {
+            console.error('Nested Roleplay: Context not available in refreshCharacterLists');
+            return;
+        }
+        
+        const { characters } = context;
+        const extension_settings = window.nestedRoleplayDebug.extension_settings;
         console.log('Nested Roleplay: Characters in context:', characters ? `${characters.length} found` : 'none found');
         const settings = extension_settings[MODULE_NAME];
         
@@ -135,8 +193,9 @@ function refreshCharacterLists() {
  */
 function onMessageReceived(data) {
     try {
-        const context = getContext();
-        const { extension_settings } = context;
+        // Get the latest context
+        const context = window.nestedRoleplayDebug.getContext();
+        const extension_settings = window.nestedRoleplayDebug.extension_settings;
         const settings = extension_settings[MODULE_NAME];
         
         // Ignore if extension is disabled
@@ -211,8 +270,9 @@ function onBeforeCombinePrompts(data) {
             return;
         }
         
-        const context = getContext();
-        const { extension_settings } = context;
+        // Get the latest context
+        const context = window.nestedRoleplayDebug.getContext();
+        const extension_settings = window.nestedRoleplayDebug.extension_settings;
         const settings = extension_settings[MODULE_NAME];
         
         // Ignore if extension is disabled

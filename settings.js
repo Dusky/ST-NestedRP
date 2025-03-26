@@ -1,4 +1,4 @@
-import { extension_settings, saveSettingsDebounced } from "../../../script.js";
+// Will use dynamically imported extension_settings from index.js
 
 // Module name for settings
 export const MODULE_NAME = 'nested_roleplay';
@@ -17,9 +17,26 @@ export const defaultSettings = {
 
 /**
  * Initialize extension settings
+ * @param {object} extension_settings - The extension settings object
  * @returns {Promise<object>} The settings object
  */
-export async function initSettings() {
+export async function initSettings(extension_settings) {
+    // Try to dynamically import saveSettingsDebounced
+    let saveSettingsDebounced;
+    try {
+        const module = await import('../../../script.js');
+        saveSettingsDebounced = module.saveSettingsDebounced;
+    } catch (e) {
+        try {
+            const module = await import('../../script.js');
+            saveSettingsDebounced = module.saveSettingsDebounced;
+        } catch (e2) {
+            console.error('Nested Roleplay: Failed to import script.js', e2);
+            // Fallback dummy function
+            saveSettingsDebounced = () => console.warn('Nested Roleplay: saveSettingsDebounced not available');
+        }
+    }
+
     // Create settings if they don't exist
     if (!extension_settings[MODULE_NAME]) {
         console.log(`Nested Roleplay: Creating new settings object`);
@@ -45,8 +62,9 @@ export async function initSettings() {
 
 /**
  * Register UI event handlers
+ * @param {object} extension_settings - The extension settings object
  */
-export function registerUIHandlers() {
+export function registerUIHandlers(extension_settings) {
     // Make sure settings exist
     if (!extension_settings[MODULE_NAME]) {
         console.error('Nested Roleplay: Settings not initialized');
