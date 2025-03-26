@@ -5,10 +5,9 @@
  * acts as a roleplay partner who controls another character.
  */
 
-import { getContext } from '../../../extensions.js';
-import { MODULE_NAME, initSettings, registerUIHandlers } from './settings.js';
+import { getContext, extension_settings } from '../../../extensions.js';
+import { MODULE_NAME, extensionName, initSettings, registerUIHandlers } from './settings.js';
 
-export const extensionName = 'nested-roleplay';
 const extensionFolder = `scripts/extensions/third-party/${extensionName}`;
 
 // Initialize extension
@@ -48,41 +47,52 @@ jQuery(async () => {
  * Refresh character dropdown lists in settings
  */
 function refreshCharacterLists() {
-    const context = getContext();
-    const { characters, extension_settings } = context;
-    const settings = extension_settings[MODULE_NAME];
-    
-    // Clear existing options
-    $('#nested_roleplay_partner').empty();
-    $('#nested_roleplay_controlled').empty();
-    
-    // Add default empty option
-    $('#nested_roleplay_partner').append('<option value="">Select a character</option>');
-    $('#nested_roleplay_controlled').append('<option value="">Select a character</option>');
-    
-    // Add character options
-    for (const char of characters) {
-        if (!char.name) continue;
+    try {
+        const context = getContext();
+        const { characters, extension_settings } = context;
+        const settings = extension_settings[MODULE_NAME];
         
-        const $partnerOption = $('<option></option>')
-            .val(char.avatar)
-            .text(char.name);
+        if (!characters || !Array.isArray(characters) || characters.length === 0) {
+            console.warn('Nested Roleplay: No characters available to populate dropdowns');
+            return;
+        }
+        
+        // Clear existing options
+        $('#nested_roleplay_partner').empty();
+        $('#nested_roleplay_controlled').empty();
+        
+        // Add default empty option
+        $('#nested_roleplay_partner').append('<option value="">Select a character</option>');
+        $('#nested_roleplay_controlled').append('<option value="">Select a character</option>');
+        
+        console.log(`Nested Roleplay: Populating character dropdowns with ${characters.length} characters`);
+        
+        // Add character options
+        for (const char of characters) {
+            if (!char.name) continue;
             
-        const $controlledOption = $('<option></option>')
-            .val(char.avatar)
-            .text(char.name);
-        
-        // Set selected if matching saved character
-        if (char.avatar === settings.partnerCharacterId) {
-            $partnerOption.attr('selected', 'selected');
+            const $partnerOption = $('<option></option>')
+                .val(char.avatar)
+                .text(char.name);
+                
+            const $controlledOption = $('<option></option>')
+                .val(char.avatar)
+                .text(char.name);
+            
+            // Set selected if matching saved character
+            if (char.avatar === settings.partnerCharacterId) {
+                $partnerOption.attr('selected', 'selected');
+            }
+            
+            if (char.avatar === settings.controlledCharacterId) {
+                $controlledOption.attr('selected', 'selected');
+            }
+            
+            $('#nested_roleplay_partner').append($partnerOption);
+            $('#nested_roleplay_controlled').append($controlledOption);
         }
-        
-        if (char.avatar === settings.controlledCharacterId) {
-            $controlledOption.attr('selected', 'selected');
-        }
-        
-        $('#nested_roleplay_partner').append($partnerOption);
-        $('#nested_roleplay_controlled').append($controlledOption);
+    } catch (error) {
+        console.error('Nested Roleplay: Error refreshing character lists', error);
     }
 }
 
@@ -91,49 +101,69 @@ function refreshCharacterLists() {
  * @param {object} data - Message data
  */
 function onMessageReceived(data) {
-    const context = getContext();
-    const { extension_settings } = context;
-    const settings = extension_settings[MODULE_NAME];
-    
-    // Ignore if extension is disabled
-    if (!settings.enabled) return;
-    
-    // Ignore if not an AI message
-    if (data.is_user) return;
-    
-    // Ignore if no characters are selected
-    if (!settings.partnerCharacterId || !settings.controlledCharacterId) return;
-    
-    // Get characters from context
-    const { characters } = context;
-    
-    // Find partner and controlled character
-    const partnerChar = characters.find(char => char.avatar === settings.partnerCharacterId);
-    const controlledChar = characters.find(char => char.avatar === settings.controlledCharacterId);
-    
-    if (!partnerChar || !controlledChar) return;
-    
-    // Process the message
-    const originalText = data.mes;
-    const processedText = processNestedRoleplayMessage(
-        originalText, 
-        partnerChar.name, 
-        controlledChar.name,
-        settings
-    );
-    
-    // Update the message
-    if (processedText !== originalText) {
-        data.mes = processedText;
+    try {
+        const context = getContext();
+        const { extension_settings } = context;
+        const settings = extension_settings[MODULE_NAME];
         
-        // Add classes for styling
-        setTimeout(() => {
-            const $lastMsg = $('#chat').find('.mes').last();
-            $lastMsg.addClass('nested-roleplay-partner-msg');
+        // Ignore if extension is disabled
+        if (!settings || !settings.enabled) return;
+        
+        // Ignore if not an AI message
+        if (data.is_user) return;
+        
+        // Ignore if no characters are selected
+        if (!settings.partnerCharacterId || !settings.controlledCharacterId) {
+            console.debug('Nested Roleplay: No characters selected, skipping message processing');
+            return;
+        }
+        
+        // Get characters from context
+        const { characters } = context;
+        if (!characters || !Array.isArray(characters)) {
+            console.warn('Nested Roleplay: Characters array not available');
+            return;
+        }
+        
+        // Find partner and controlled character
+        const partnerChar = characters.find(char => char.avatar === settings.partnerCharacterId);
+        const controlledChar = characters.find(char => char.avatar === settings.controlledCharacterId);
+        
+        if (!partnerChar || !controlledChar) {
+            console.debug(`Nested Roleplay: Selected characters not found in character list`);
+            return;
+        }
+        
+        // Process the message
+        const originalText = data.mes;
+        const processedText = processNestedRoleplayMessage(
+            originalText, 
+            partnerChar.name, 
+            controlledChar.name,
+            settings
+        );
+        
+        // Update the message
+        if (processedText !== originalText) {
+            data.mes = processedText;
             
-            // Apply highlight to controlled character dialogue
-            highlightControlledCharacterDialog($lastMsg, controlledChar.name);
-        }, 10);
+            // Add classes for styling
+            setTimeout(() => {
+                try {
+                    const $lastMsg = $('#chat').find('.mes').last();
+                    if ($lastMsg.length) {
+                        $lastMsg.addClass('nested-roleplay-partner-msg');
+                        
+                        // Apply highlight to controlled character dialogue
+                        highlightControlledCharacterDialog($lastMsg, controlledChar.name);
+                    }
+                } catch (innerError) {
+                    console.error('Nested Roleplay: Error styling message', innerError);
+                }
+            }, 10);
+        }
+    } catch (error) {
+        console.error('Nested Roleplay: Error processing message', error);
     }
 }
 
@@ -142,34 +172,55 @@ function onMessageReceived(data) {
  * @param {object} data - The data containing prompts
  */
 function onBeforeCombinePrompts(data) {
-    const context = getContext();
-    const { extension_settings } = context;
-    const settings = extension_settings[MODULE_NAME];
-    
-    // Ignore if extension is disabled
-    if (!settings.enabled) return;
-    
-    // Ignore if no characters are selected
-    if (!settings.partnerCharacterId || !settings.controlledCharacterId) return;
-    
-    // Get characters from context
-    const { characters } = context;
-    
-    // Find partner and controlled character
-    const partnerChar = characters.find(char => char.avatar === settings.partnerCharacterId);
-    const controlledChar = characters.find(char => char.avatar === settings.controlledCharacterId);
-    
-    if (!partnerChar || !controlledChar) return;
-    
-    // Add system prompt to guide the AI in generating nested roleplay responses
-    const systemPrompt = createNestedRoleplaySystemPrompt(partnerChar.name, controlledChar.name, settings);
-    
-    // Check if system_prompt already exists in data
-    if (!data.system_prompt) {
-        data.system_prompt = systemPrompt;
-    } else {
-        // Append to existing system prompt
-        data.system_prompt += '\n\n' + systemPrompt;
+    try {
+        if (!data) {
+            console.warn('Nested Roleplay: No data provided to prompt modifier');
+            return;
+        }
+        
+        const context = getContext();
+        const { extension_settings } = context;
+        const settings = extension_settings[MODULE_NAME];
+        
+        // Ignore if extension is disabled
+        if (!settings || !settings.enabled) return;
+        
+        // Ignore if no characters are selected
+        if (!settings.partnerCharacterId || !settings.controlledCharacterId) {
+            console.debug('Nested Roleplay: No characters selected, skipping prompt modification');
+            return;
+        }
+        
+        // Get characters from context
+        const { characters } = context;
+        if (!characters || !Array.isArray(characters)) {
+            console.warn('Nested Roleplay: Characters array not available');
+            return;
+        }
+        
+        // Find partner and controlled character
+        const partnerChar = characters.find(char => char.avatar === settings.partnerCharacterId);
+        const controlledChar = characters.find(char => char.avatar === settings.controlledCharacterId);
+        
+        if (!partnerChar || !controlledChar) {
+            console.debug(`Nested Roleplay: Selected characters not found in character list`);
+            return;
+        }
+        
+        // Add system prompt to guide the AI in generating nested roleplay responses
+        const systemPrompt = createNestedRoleplaySystemPrompt(partnerChar.name, controlledChar.name, settings);
+        
+        console.debug('Nested Roleplay: Adding system prompt for nested roleplay');
+        
+        // Check if system_prompt already exists in data
+        if (!data.system_prompt) {
+            data.system_prompt = systemPrompt;
+        } else {
+            // Append to existing system prompt
+            data.system_prompt += '\n\n' + systemPrompt;
+        }
+    } catch (error) {
+        console.error('Nested Roleplay: Error modifying prompts', error);
     }
 }
 

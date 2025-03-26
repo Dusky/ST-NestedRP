@@ -1,8 +1,8 @@
 import { extension_settings, saveSettingsDebounced } from "../../../script.js";
-import { extensionName } from "./index.js";
 
 // Module name for settings
 export const MODULE_NAME = 'nested_roleplay';
+export const extensionName = 'nested-roleplay';
 
 // Default settings
 export const defaultSettings = {
@@ -22,14 +22,22 @@ export const defaultSettings = {
 export async function initSettings() {
     // Create settings if they don't exist
     if (!extension_settings[MODULE_NAME]) {
+        console.log(`Nested Roleplay: Creating new settings object`);
         extension_settings[MODULE_NAME] = {};
     }
     
     // Set default values for settings that don't exist
+    let settingsMissing = false;
     for (const key in defaultSettings) {
         if (extension_settings[MODULE_NAME][key] === undefined) {
+            settingsMissing = true;
             extension_settings[MODULE_NAME][key] = defaultSettings[key];
         }
+    }
+    
+    if (settingsMissing) {
+        console.log(`Nested Roleplay: Applied default settings`);
+        saveSettingsDebounced();
     }
     
     return extension_settings[MODULE_NAME];
