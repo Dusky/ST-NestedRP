@@ -5,100 +5,72 @@
  * acts as a roleplay partner who controls another character.
  */
 
+import { extension_settings, getContext, saveSettingsDebounced } from "../../../../script.js";
+
 // Module name for settings
 const MODULE_NAME = 'nested_roleplay';
 
 // Default settings
 const defaultSettings = {
     enabled: false,
-    partnerCharacterId: null,
-    controlledCharacterId: null,
+    partnerCharacterId: '',
+    controlledCharacterId: '',
     showPartnerName: true,
     allowMetaCommentary: true,
     metaCommentaryStyle: 'parentheses', // 'parentheses' or 'asterisks'
     controlledCharDialog: 'quotes', // 'quotes' or 'none'
 };
 
-// Import from SillyTavern API
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize extension
-    initializeNestedRoleplay();
+// Initialize extension settings
+function initSettings() {
+    // Create settings if they don't exist
+    if (!extension_settings[MODULE_NAME]) {
+        extension_settings[MODULE_NAME] = {};
+    }
+    
+    // Set default values for settings that don't exist
+    for (const key in defaultSettings) {
+        if (extension_settings[MODULE_NAME][key] === undefined) {
+            extension_settings[MODULE_NAME][key] = defaultSettings[key];
+        }
+    }
+}
+
+// Initialize extension
+jQuery(async () => {
+    // Get SillyTavern API context
+    const context = getContext();
+    const { eventSource, event_types } = context;
+    
+    // Initialize settings
+    initSettings();
+    
+    // Create and add the settings UI
+    $('#extensions_settings2').append(renderExtensionTemplate());
+    
+    // Register event handlers for UI controls
+    registerUIHandlers();
+    
+    // Initialize character lists
+    refreshCharacterLists();
+    
+    // Register event listeners
+    eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
+    eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
+    eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
+    eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
+    eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePrompts);
+    
+    console.log('Nested Roleplay extension loaded');
 });
 
 /**
- * Initialize the extension
+ * Render the extension settings UI template
+ * @returns {string} HTML template
  */
-function initializeNestedRoleplay() {
-    console.log('Nested Roleplay: Initializing extension');
-    
-    try {
-        const context = SillyTavern.getContext();
-        const { eventSource, event_types, characters, extensionSettings, saveSettingsDebounced } = context;
-        
-        // Initialize settings
-        if (!extensionSettings[MODULE_NAME]) {
-            extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
-        }
-        
-        // Register event listeners for UI initialization
-        eventSource.on(event_types.APP_READY, onAppReady);
-        eventSource.on(event_types.EXTENSIONS_FIRST_LOAD, addSettingsUI);
-        eventSource.on(event_types.SETTINGS_LOADED, addSettingsUI);
-        
-        // Add settings UI immediately (some versions may not fire the events)
-        addSettingsUI();
-        
-        // Register core functionality event listeners
-        eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
-        eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
-        eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
-        eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
-        
-        // Register prompt modifiers
-        registerPromptModifiers();
-        
-        console.log('Nested Roleplay: Extension initialized successfully');
-    } catch (error) {
-        console.error('Nested Roleplay: Error initializing extension', error);
-    }
-}
-
-/**
- * When the app is ready, initialize the extension
- */
-function onAppReady() {
-    refreshCharacterLists();
-}
-
-/**
- * Get extension settings
- * @returns {object} Extension settings
- */
-function getSettings() {
-    const { extensionSettings } = SillyTavern.getContext();
-    
-    // Initialize settings if they don't exist
-    if (!extensionSettings[MODULE_NAME]) {
-        extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
-    }
-    
-    // Ensure all default keys exist
-    for (const key in defaultSettings) {
-        if (extensionSettings[MODULE_NAME][key] === undefined) {
-            extensionSettings[MODULE_NAME][key] = defaultSettings[key];
-        }
-    }
-    
-    return extensionSettings[MODULE_NAME];
-}
-
-/**
- * Add settings UI to the extensions panel
- */
-function addSettingsUI() {
-    // Create settings HTML
-    const html = `
-    <div id="nested_roleplay_settings">
+function renderExtensionTemplate() {
+    return `
+    <div class="nested_roleplay_settings">
         <div class="inline-drawer">
             <div class="inline-drawer-toggle inline-drawer-header">
                 <b>Nested Roleplay</b>
@@ -150,39 +122,13 @@ function addSettingsUI() {
             </div>
         </div>
     </div>`;
-    
-    // Add HTML to extensions settings
-    // Try different possible selectors for the extensions settings container
-    const extensionsContainer = $('#extensions_settings, #extensions-settings, .extensions_settings, .extensions-settings').first();
-    
-    if (extensionsContainer.length) {
-        extensionsContainer.append(html);
-        
-        // Bind event listeners to UI elements
-        bindSettingsUIEvents();
-        console.log('Nested Roleplay: Settings UI added successfully');
-    } else {
-        console.error('Nested Roleplay: Could not find extensions settings container');
-        // Fallback: Try to add after some delay when the DOM might be ready
-        setTimeout(() => {
-            const extensionsContainer = $('#extensions_settings, #extensions-settings, .extensions_settings, .extensions-settings').first();
-            if (extensionsContainer.length) {
-                extensionsContainer.append(html);
-                bindSettingsUIEvents();
-                console.log('Nested Roleplay: Settings UI added successfully (delayed)');
-            } else {
-                console.error('Nested Roleplay: Still could not find extensions settings container after delay');
-            }
-        }, 2000);
-    }
 }
 
 /**
- * Bind UI events to settings elements
+ * Register event handlers for UI controls
  */
-function bindSettingsUIEvents() {
-    // Get settings
-    const settings = getSettings();
+function registerUIHandlers() {
+    const settings = extension_settings[MODULE_NAME];
     
     // Set initial values
     $('#nested_roleplay_enabled').prop('checked', settings.enabled);
@@ -194,54 +140,47 @@ function bindSettingsUIEvents() {
     // Bind change events
     $('#nested_roleplay_enabled').on('change', function() {
         settings.enabled = !!$(this).prop('checked');
-        saveSettings();
+        saveSettingsDebounced();
     });
     
     $('#nested_roleplay_partner').on('change', function() {
         settings.partnerCharacterId = $(this).val();
-        saveSettings();
+        saveSettingsDebounced();
     });
     
     $('#nested_roleplay_controlled').on('change', function() {
         settings.controlledCharacterId = $(this).val();
-        saveSettings();
+        saveSettingsDebounced();
     });
     
     $('#nested_roleplay_show_partner_name').on('change', function() {
         settings.showPartnerName = !!$(this).prop('checked');
-        saveSettings();
+        saveSettingsDebounced();
     });
     
     $('#nested_roleplay_allow_commentary').on('change', function() {
         settings.allowMetaCommentary = !!$(this).prop('checked');
-        saveSettings();
+        saveSettingsDebounced();
     });
     
     $('#nested_roleplay_commentary_style').on('change', function() {
         settings.metaCommentaryStyle = $(this).val();
-        saveSettings();
+        saveSettingsDebounced();
     });
     
     $('#nested_roleplay_dialog_style').on('change', function() {
         settings.controlledCharDialog = $(this).val();
-        saveSettings();
+        saveSettingsDebounced();
     });
-}
-
-/**
- * Save extension settings
- */
-function saveSettings() {
-    const { saveSettingsDebounced } = SillyTavern.getContext();
-    saveSettingsDebounced();
 }
 
 /**
  * Refresh character dropdown lists in settings
  */
 function refreshCharacterLists() {
-    const { characters } = SillyTavern.getContext();
-    const settings = getSettings();
+    const context = getContext();
+    const { characters } = context;
+    const settings = extension_settings[MODULE_NAME];
     
     // Clear existing options
     $('#nested_roleplay_partner').empty();
@@ -283,7 +222,7 @@ function refreshCharacterLists() {
  */
 function onMessageReceived(data) {
     // Ignore if extension is disabled
-    const settings = getSettings();
+    const settings = extension_settings[MODULE_NAME];
     if (!settings.enabled) return;
     
     // Ignore if not an AI message
@@ -293,7 +232,7 @@ function onMessageReceived(data) {
     if (!settings.partnerCharacterId || !settings.controlledCharacterId) return;
     
     // Get the context
-    const context = SillyTavern.getContext();
+    const context = getContext();
     const { characters } = context;
     
     // Find partner and controlled character
@@ -327,27 +266,17 @@ function onMessageReceived(data) {
 }
 
 /**
- * Register event listeners for modifying the prompt before sending to the AI
- */
-function registerPromptModifiers() {
-    const { eventSource, event_types } = SillyTavern.getContext();
-    
-    // Listen for the event that fires right before a prompt is combined and sent to the API
-    eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePrompts);
-}
-
-/**
  * Modify the prompts before they are combined and sent to the API
  * @param {object} data - The data containing prompts
  */
 function onBeforeCombinePrompts(data) {
-    const settings = getSettings();
+    const settings = extension_settings[MODULE_NAME];
     if (!settings.enabled) return;
     
     // Ignore if no characters are selected
     if (!settings.partnerCharacterId || !settings.controlledCharacterId) return;
     
-    const context = SillyTavern.getContext();
+    const context = getContext();
     const { characters } = context;
     
     // Find partner and controlled character
