@@ -1,146 +1,144 @@
 /**
  * Nested Roleplay extension for SillyTavern
- * 
- * Allows users to create a meta-roleplay experience where one AI character
- * acts as a roleplay partner who controls another character.
  */
 
-// Import locally defined modules
-import { MODULE_NAME, extensionName, initSettings, registerUIHandlers } from './settings.js';
+import { getContext, extension_settings, saveSettingsDebounced } from "../../../extensions.js";
 
-// Define a function to try different import paths
-async function importExtensionsModule() {
-    let getContext, extension_settings;
+// Module name for settings
+const MODULE_NAME = 'rppal';
+
+// Default settings
+const defaultSettings = {
+    enabled: false,
+    partnerCharacterId: '',
+    controlledCharacterId: '',
+    showPartnerName: true,
+    allowMetaCommentary: true,
+    metaCommentaryStyle: 'parentheses', // 'parentheses' or 'asterisks'
+    controlledCharDialog: 'quotes', // 'quotes' or 'none'
+};
+
+// Initialize extension when the document is fully loaded
+jQuery(function() {
+    console.log('Nested Roleplay extension loading');
     
-    try {
-        // Try the standard path first (manual installation)
-        const module = await import('../../../extensions.js');
-        getContext = module.getContext;
-        extension_settings = module.extension_settings;
-        console.log('Nested Roleplay: Imported from standard path');
-        return { getContext, extension_settings };
-    } catch (e) {
-        try {
-            // Try alternate path (extension manager)
-            const module = await import('../../extensions.js');
-            getContext = module.getContext;
-            extension_settings = module.extension_settings;
-            console.log('Nested Roleplay: Imported from alternate path');
-            return { getContext, extension_settings };
-        } catch (e2) {
-            console.error('Nested Roleplay: Failed to import extensions.js', e2);
-            return null;
+    // Make sure the settings object exists
+    if (!extension_settings[MODULE_NAME]) {
+        extension_settings[MODULE_NAME] = {};
+    }
+    
+    // Set default values for settings that don't exist
+    for (const key in defaultSettings) {
+        if (extension_settings[MODULE_NAME][key] === undefined) {
+            extension_settings[MODULE_NAME][key] = defaultSettings[key];
         }
     }
-}
+    
+    // Load settings HTML template
+    loadSettingsHTML();
+    
+    // Register UI event handlers
+    registerUIHandlers();
+    
+    // Register SillyTavern event handlers
+    registerSTEventHandlers();
+    
+    console.log('Nested Roleplay extension loaded successfully');
+});
 
-// Use relative path for extension folder
-const extensionFolder = `extensions/${extensionName}`;
-
-// Register the extension callback for when extensions are loaded by SillyTavern
-(function() {
-    // Add a listener for the extensions_done event
-    document.addEventListener('extensions_done', function() {
-        console.log('Nested Roleplay: SillyTavern extensions_done event received');
-        initializeExtension();
-    });
-})();
-
-// Main initialization function
-async function initializeExtension() {
-    console.log('Nested Roleplay: Starting initialization');
+/**
+ * Load the settings HTML template
+ */
+async function loadSettingsHTML() {
     try {
-        // First import the required modules dynamically
-        const modules = await importExtensionsModule();
-        if (!modules) {
-            console.error('Nested Roleplay: Could not import required modules');
-            return;
-        }
-        
-        const { getContext, extension_settings } = modules;
-        
-        // Access to global window for debugging
-        window.nestedRoleplayDebug = {
-            getContext,
-            extension_settings,
-            extensionName,
-            MODULE_NAME
-        };
-        
-        console.log('Nested Roleplay: Extension folder path:', extensionFolder);
-        
-        // Load settings HTML template
-        console.log('Nested Roleplay: Attempting to load template.html from:', `${extensionFolder}/template.html`);
-        try {
-            const settingsHtml = await $.get(`${extensionFolder}/template.html`);
-            console.log('Nested Roleplay: Successfully loaded template.html');
-            $('#extensions_settings2').append(settingsHtml);
-        } catch (templateError) {
-            console.error('Nested Roleplay: Failed to load template.html', templateError);
-        }
-        
-        // Initialize settings
-        await initSettings(extension_settings);
-        
-        // Register UI handlers and initialize character lists
-        registerUIHandlers(extension_settings);
-        
-        // Register event listeners
-        const context = getContext();
-        console.log('Nested Roleplay: Context retrieved', context ? 'successfully' : 'failed');
-        
-        // Check if the extension is registered in the extensions registry
-        if (context && context.extensionNames) {
-            console.log('Nested Roleplay: Extension names in context:', context.extensionNames);
-            console.log('Nested Roleplay: Is extension registered?', context.extensionNames.includes(extensionName));
-        }
-        
-        // Make sure refreshCharacterLists is defined before calling
-        if (typeof refreshCharacterLists === 'function') {
-            refreshCharacterLists();
-        } else {
-            console.error('Nested Roleplay: refreshCharacterLists function not defined in scope');
-        }
-        
-        const { eventSource, event_types } = context;
-        
-        eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
-        eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
-        eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
-        eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
-        eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePrompts);
-        
-        console.log('Nested Roleplay extension loaded successfully');
+        const extensionFolder = `extensions/${MODULE_NAME}`;
+        const settingsHtml = await $.get(`${extensionFolder}/template.html`);
+        $('#extensions_settings2').append(settingsHtml);
     } catch (error) {
-        console.error('Nested Roleplay: Error during initialization', error);
+        console.error('Nested Roleplay: Error loading settings HTML', error);
     }
 }
 
 /**
+ * Register UI event handlers
+ */
+function registerUIHandlers() {
+    const settings = extension_settings[MODULE_NAME];
+    
+    // Set initial values
+    $('#nested_roleplay_enabled').prop('checked', settings.enabled);
+    $('#nested_roleplay_show_partner_name').prop('checked', settings.showPartnerName);
+    $('#nested_roleplay_allow_commentary').prop('checked', settings.allowMetaCommentary);
+    $('#nested_roleplay_commentary_style').val(settings.metaCommentaryStyle);
+    $('#nested_roleplay_dialog_style').val(settings.controlledCharDialog);
+    
+    // Bind change events
+    $('#nested_roleplay_enabled').on('change', function() {
+        settings.enabled = !!$(this).prop('checked');
+        saveSettingsDebounced();
+    });
+    
+    $('#nested_roleplay_partner').on('change', function() {
+        settings.partnerCharacterId = $(this).val();
+        saveSettingsDebounced();
+    });
+    
+    $('#nested_roleplay_controlled').on('change', function() {
+        settings.controlledCharacterId = $(this).val();
+        saveSettingsDebounced();
+    });
+    
+    $('#nested_roleplay_show_partner_name').on('change', function() {
+        settings.showPartnerName = !!$(this).prop('checked');
+        saveSettingsDebounced();
+    });
+    
+    $('#nested_roleplay_allow_commentary').on('change', function() {
+        settings.allowMetaCommentary = !!$(this).prop('checked');
+        saveSettingsDebounced();
+    });
+    
+    $('#nested_roleplay_commentary_style').on('change', function() {
+        settings.metaCommentaryStyle = $(this).val();
+        saveSettingsDebounced();
+    });
+    
+    $('#nested_roleplay_dialog_style').on('change', function() {
+        settings.controlledCharDialog = $(this).val();
+        saveSettingsDebounced();
+    });
+}
+
+/**
+ * Register SillyTavern event handlers
+ */
+function registerSTEventHandlers() {
+    const context = getContext();
+    if (!context) {
+        console.error('Nested Roleplay: Failed to get SillyTavern context');
+        return;
+    }
+    
+    const { eventSource, event_types } = context;
+    
+    // Register event listeners
+    eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
+    eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
+    eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
+    eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
+    eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePrompts);
+    
+    // Initial character list population
+    refreshCharacterLists();
+}
+
+/**
  * Refresh character dropdown lists in settings
- * Declared early to ensure it's defined before it's used
  */
 function refreshCharacterLists() {
-    console.log('Nested Roleplay: refreshCharacterLists called');
     try {
-        // Check if our debug object is available
-        if (!window.nestedRoleplayDebug || !window.nestedRoleplayDebug.getContext) {
-            console.error('Nested Roleplay: Debug object not yet available, refreshCharacterLists called too early');
-            return;
-        }
-        
-        // Get the latest context from our debug object
-        const context = window.nestedRoleplayDebug.getContext();
-        console.log('Nested Roleplay: Context in refreshCharacterLists:', context ? 'available' : 'unavailable');
-        
-        if (!context) {
-            console.error('Nested Roleplay: Context not available in refreshCharacterLists');
-            return;
-        }
-        
+        const context = getContext();
         const { characters } = context;
-        const extension_settings = window.nestedRoleplayDebug.extension_settings;
-        console.log('Nested Roleplay: Characters in context:', characters ? `${characters.length} found` : 'none found');
         const settings = extension_settings[MODULE_NAME];
         
         if (!characters || !Array.isArray(characters) || characters.length === 0) {
@@ -155,8 +153,6 @@ function refreshCharacterLists() {
         // Add default empty option
         $('#nested_roleplay_partner').append('<option value="">Select a character</option>');
         $('#nested_roleplay_controlled').append('<option value="">Select a character</option>');
-        
-        console.log(`Nested Roleplay: Populating character dropdowns with ${characters.length} characters`);
         
         // Add character options
         for (const char of characters) {
@@ -193,9 +189,6 @@ function refreshCharacterLists() {
  */
 function onMessageReceived(data) {
     try {
-        // Get the latest context
-        const context = window.nestedRoleplayDebug.getContext();
-        const extension_settings = window.nestedRoleplayDebug.extension_settings;
         const settings = extension_settings[MODULE_NAME];
         
         // Ignore if extension is disabled
@@ -211,6 +204,7 @@ function onMessageReceived(data) {
         }
         
         // Get characters from context
+        const context = getContext();
         const { characters } = context;
         if (!characters || !Array.isArray(characters)) {
             console.warn('Nested Roleplay: Characters array not available');
@@ -270,9 +264,6 @@ function onBeforeCombinePrompts(data) {
             return;
         }
         
-        // Get the latest context
-        const context = window.nestedRoleplayDebug.getContext();
-        const extension_settings = window.nestedRoleplayDebug.extension_settings;
         const settings = extension_settings[MODULE_NAME];
         
         // Ignore if extension is disabled
@@ -285,6 +276,7 @@ function onBeforeCombinePrompts(data) {
         }
         
         // Get characters from context
+        const context = getContext();
         const { characters } = context;
         if (!characters || !Array.isArray(characters)) {
             console.warn('Nested Roleplay: Characters array not available');
@@ -302,8 +294,6 @@ function onBeforeCombinePrompts(data) {
         
         // Add system prompt to guide the AI in generating nested roleplay responses
         const systemPrompt = createNestedRoleplaySystemPrompt(partnerChar.name, controlledChar.name, settings);
-        
-        console.debug('Nested Roleplay: Adding system prompt for nested roleplay');
         
         // Check if system_prompt already exists in data
         if (!data.system_prompt) {

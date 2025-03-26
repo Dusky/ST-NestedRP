@@ -1,13 +1,13 @@
 {
-    "name": "nested-roleplay",
+    "name": "rppal",
     "display_name": "Nested Roleplay",
     "loading_order": 10,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "Dusky",
+    "author": "Matt",
     "version": "1.0.0",
-    "homePage": "https://github.com/Dusky/ST-NestedRP",
-    "auto_update": true
+    "homePage": "https://github.com/matt/rppal",
+    "auto_update": false
 }
