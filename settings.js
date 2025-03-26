@@ -1,4 +1,4 @@
-import { extension_settings, saveSettingsDebounced } from "../../../script.js";
+import { extension_settings, saveSettingsDebounced } from "../../script.js";
 
 // Module name for settings
 export const MODULE_NAME = 'nested_roleplay';

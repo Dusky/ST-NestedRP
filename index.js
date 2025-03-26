@@ -5,10 +5,10 @@
  * acts as a roleplay partner who controls another character.
  */
 
-import { getContext, extension_settings } from '../../../extensions.js';
+import { getContext, extension_settings } from '../../extensions.js';
 import { MODULE_NAME, extensionName, initSettings, registerUIHandlers } from './settings.js';
 
-const extensionFolder = `scripts/extensions/third-party/${extensionName}`;
+const extensionFolder = `extensions/${extensionName}`;
 
 // Initialize extension
 jQuery(async () => {
@@ -24,7 +24,12 @@ jQuery(async () => {
         
         // Register UI handlers and initialize character lists
         registerUIHandlers();
-        refreshCharacterLists();
+        // Make sure refreshCharacterLists is defined before calling
+        if (typeof refreshCharacterLists === 'function') {
+            refreshCharacterLists();
+        } else {
+            console.error('Nested Roleplay: refreshCharacterLists function not defined in scope');
+        }
         
         // Register event listeners
         const context = getContext();
