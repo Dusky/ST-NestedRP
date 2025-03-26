@@ -29,26 +29,38 @@ document.addEventListener('DOMContentLoaded', function() {
  * Initialize the extension
  */
 function initializeNestedRoleplay() {
-    const context = SillyTavern.getContext();
-    const { eventSource, event_types, characters, extensionSettings, saveSettingsDebounced } = context;
+    console.log('Nested Roleplay: Initializing extension');
     
-    // Initialize settings
-    if (!extensionSettings[MODULE_NAME]) {
-        extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
+    try {
+        const context = SillyTavern.getContext();
+        const { eventSource, event_types, characters, extensionSettings, saveSettingsDebounced } = context;
+        
+        // Initialize settings
+        if (!extensionSettings[MODULE_NAME]) {
+            extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
+        }
+        
+        // Register event listeners for UI initialization
+        eventSource.on(event_types.APP_READY, onAppReady);
+        eventSource.on(event_types.EXTENSIONS_FIRST_LOAD, addSettingsUI);
+        eventSource.on(event_types.SETTINGS_LOADED, addSettingsUI);
+        
+        // Add settings UI immediately (some versions may not fire the events)
+        addSettingsUI();
+        
+        // Register core functionality event listeners
+        eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
+        eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
+        eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
+        eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
+        
+        // Register prompt modifiers
+        registerPromptModifiers();
+        
+        console.log('Nested Roleplay: Extension initialized successfully');
+    } catch (error) {
+        console.error('Nested Roleplay: Error initializing extension', error);
     }
-    
-    // Add settings UI
-    addSettingsUI();
-    
-    // Register event listeners
-    eventSource.on(event_types.APP_READY, onAppReady);
-    eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
-    eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
-    eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
-    eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
-    
-    // Register prompt modifiers
-    registerPromptModifiers();
 }
 
 /**
@@ -140,10 +152,29 @@ function addSettingsUI() {
     </div>`;
     
     // Add HTML to extensions settings
-    $('#extensions_settings').append(html);
+    // Try different possible selectors for the extensions settings container
+    const extensionsContainer = $('#extensions_settings, #extensions-settings, .extensions_settings, .extensions-settings').first();
     
-    // Bind event listeners to UI elements
-    bindSettingsUIEvents();
+    if (extensionsContainer.length) {
+        extensionsContainer.append(html);
+        
+        // Bind event listeners to UI elements
+        bindSettingsUIEvents();
+        console.log('Nested Roleplay: Settings UI added successfully');
+    } else {
+        console.error('Nested Roleplay: Could not find extensions settings container');
+        // Fallback: Try to add after some delay when the DOM might be ready
+        setTimeout(() => {
+            const extensionsContainer = $('#extensions_settings, #extensions-settings, .extensions_settings, .extensions-settings').first();
+            if (extensionsContainer.length) {
+                extensionsContainer.append(html);
+                bindSettingsUIEvents();
+                console.log('Nested Roleplay: Settings UI added successfully (delayed)');
+            } else {
+                console.error('Nested Roleplay: Still could not find extensions settings container after delay');
+            }
+        }, 2000);
+    }
 }
 
 /**
