@@ -1,4 +1,5 @@
-import { extension_settings, saveSettingsDebounced } from "../../../../script.js";
+import { extension_settings, saveSettingsDebounced } from "../../../script.js";
+import { extensionName } from "./index.js";
 
 // Module name for settings
 export const MODULE_NAME = 'nested_roleplay';
@@ -16,8 +17,9 @@ export const defaultSettings = {
 
 /**
  * Initialize extension settings
+ * @returns {Promise<object>} The settings object
  */
-export function initSettings() {
+export async function initSettings() {
     // Create settings if they don't exist
     if (!extension_settings[MODULE_NAME]) {
         extension_settings[MODULE_NAME] = {};
@@ -37,6 +39,12 @@ export function initSettings() {
  * Register UI event handlers
  */
 export function registerUIHandlers() {
+    // Make sure settings exist
+    if (!extension_settings[MODULE_NAME]) {
+        console.error('Nested Roleplay: Settings not initialized');
+        return;
+    }
+    
     const settings = extension_settings[MODULE_NAME];
     
     // Set initial values

@@ -5,44 +5,39 @@
  * acts as a roleplay partner who controls another character.
  */
 
-import { getContext } from "../../../../script.js";
-import { MODULE_NAME, initSettings, registerUIHandlers } from "./settings.js";
+import { getContext } from '../../../extensions.js';
+import { MODULE_NAME, initSettings, registerUIHandlers } from './settings.js';
+
+export const extensionName = 'nested-roleplay';
+const extensionFolder = `scripts/extensions/third-party/${extensionName}`;
 
 // Initialize extension
 jQuery(async () => {
     try {
         console.log('Nested Roleplay: Starting initialization');
         
-        // Get SillyTavern API context
-        const context = getContext();
-        const { eventSource, event_types, extensionSettings } = context;
+        // Load settings HTML template
+        const settingsHtml = await $.get(`${extensionFolder}/template.html`);
+        $('#extensions_settings2').append(settingsHtml);
         
         // Initialize settings
-        const settings = initSettings();
+        await initSettings();
         
-        // Create and add the settings UI
-        const response = await fetch('./extensions/nested-roleplay/template.html');
-        if (response.ok) {
-            const htmlTemplate = await response.text();
-            $('#extensions_settings2').append(htmlTemplate);
-            
-            // Register event handlers for UI controls
-            registerUIHandlers();
-            
-            // Initialize character lists
-            refreshCharacterLists();
-            
-            // Register event listeners
-            eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
-            eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
-            eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
-            eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
-            eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePrompts);
-            
-            console.log('Nested Roleplay extension loaded successfully');
-        } else {
-            console.error('Nested Roleplay: Failed to load HTML template');
-        }
+        // Register UI handlers and initialize character lists
+        registerUIHandlers();
+        refreshCharacterLists();
+        
+        // Register event listeners
+        const context = getContext();
+        const { eventSource, event_types } = context;
+        
+        eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
+        eventSource.on(event_types.CHARACTER_EDITED, refreshCharacterLists);
+        eventSource.on(event_types.CHARACTER_DELETED, refreshCharacterLists);
+        eventSource.on(event_types.CHARACTER_PAGE_LOADED, refreshCharacterLists);
+        eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePrompts);
+        
+        console.log('Nested Roleplay extension loaded successfully');
     } catch (error) {
         console.error('Nested Roleplay: Error during initialization', error);
     }
