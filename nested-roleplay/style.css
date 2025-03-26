@@ -1,0 +1,38 @@
+#nested_roleplay_settings {
+    margin: 10px 0;
+}
+
+.nested-roleplay-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.nested-roleplay-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+}
+
+.nested-roleplay-label {
+    min-width: 100px;
+}
+
+.nested-roleplay-partner-msg {
+    background-color: rgba(125, 125, 125, 0.1);
+    border-left: 3px solid #7f7f7f;
+    padding-left: 8px;
+    font-style: italic;
+}
+
+.nested-roleplay-controlled-msg {
+    background-color: rgba(125, 125, 125, 0.05);
+}
+
+/* Partner meta commentary style */
+.nested-roleplay-commentary {
+    opacity: 0.8;
+    font-style: italic;
+}
